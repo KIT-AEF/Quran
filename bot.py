@@ -10,7 +10,7 @@ from flask import Flask, request
 # يفضل قراءة التوكن من متغيرات البيئة على Render.
 # إذا لم يجده، سيستخدم التوكن المكتوب هنا.
 # !! تأكد من استخدام توكن جديد وسري !!
-BOT_TOKEN = os.environ.get('BOT_TOKEN', "7289246350:AAGv8tDGiClli1veXVJ4nstGU52cLr-0wU8")
+BOT_TOKEN = os.environ.get('BOT_TOKEN', "7875008240:AAEJs7FCGrtNF8why6IJf4vAX-FZgYyEgA0")
 
 
 # --- تهيئة البوت والتطبيق ---
