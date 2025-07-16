@@ -7,14 +7,10 @@ from flask import Flask, request
 
 # --- الإعدادات ---
 
-# 1. احصل على التوكن من متغيرات البيئة. هذا هو الأسلوب الأكثر أمانًا على Render.
-# (سنقوم بإعداده في لوحة تحكم Render لاحقًا)
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
-
-# 2. إذا لم تجد التوكن كمتغير بيئة، استخدم هذا التوكن المؤقت (للتجربة فقط).
-# !! هام: استبدله بالتوكن الجديد والسري الخاص بك.
-if not BOT_TOKEN:
-    BOT_TOKEN = "7289246350:AAGv8tDGiClli1veXVJ4nstGU52cLr-0wU8" # <--- !! ضع التوكن هنا للتجربة فقط !!
+# يفضل قراءة التوكن من متغيرات البيئة على Render.
+# إذا لم يجده، سيستخدم التوكن المكتوب هنا.
+# !! تأكد من استخدام توكن جديد وسري !!
+BOT_TOKEN = os.environ.get('BOT_TOKEN', "7289246350:AAGv8tDGiClli1veXVJ4nstGU52cLr-0wU8")
 
 
 # --- تهيئة البوت والتطبيق ---
@@ -25,8 +21,11 @@ logging.basicConfig(level=logging.INFO)
 
 # --- تحميل بيانات القرآن الكريم ---
 try:
-    # هذا المسار سيعمل على Render لأن الملفات تكون في نفس المجلد
-    with open('quran.json', 'r', encoding='utf-8') as f:
+    # المسار الكامل للملف على PythonAnywhere أو المسار النسبي على Render
+    # استخدام os.path.join يجعله أكثر مرونة
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    quran_file_path = os.path.join(current_dir, 'quran.json')
+    with open(quran_file_path, 'r', encoding='utf-8') as f:
         QURAN_DATA = json.load(f)
     logging.info("تم تحميل ملف القرآن بنجاح.")
 except Exception as e:
@@ -76,25 +75,25 @@ def webhook():
 # --- معالجات الأوامر (Handlers) ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    """الرد على أمر /start"""
-    bot.reply_to(message, "أهلاً بك في بوت آيات القرآن الكريم. أرسل الأمر /new للحصول على آية عشوائية.")
+    """الرد على أمر /start برسالة جديدة"""
+    chat_id = message.chat.id
+    welcome_text = "أهلاً بك في بوت آيات القرآن الكريم.\nأرسل الأمر /new للحصول على آية عشوائية."
+    bot.send_message(chat_id, welcome_text)
 
 @bot.message_handler(commands=['new'])
 def send_new_ayah(message):
-    """الرد على أمر /new"""
+    """إرسال آية جديدة عند استقبال أمر /new"""
+    chat_id = message.chat.id
     ayah_text = get_random_ayah()
-    bot.reply_to(message, ayah_text)
+    bot.send_message(chat_id, ayah_text)
 
 
 # هذا الجزء مهم لـ Render للتأكد من أن الويب هوك يتم إعداده عند بدء التشغيل
-# أو يمكنك إعداده يدويًا باستخدام أمر curl كما شرحت سابقًا.
 try:
-    # الحصول على رابط الخدمة من متغيرات البيئة التي يوفرها Render تلقائيًا
     RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL')
     if RENDER_EXTERNAL_URL:
-        # إزالة الويب هوك القديم أولاً ثم إعداد الجديد
         bot.remove_webhook()
         bot.set_webhook(url=f"{RENDER_EXTERNAL_URL}/{BOT_TOKEN}")
-        logging.info(f"تم إعداد الويب هوك بنجاح على Render.")
+        logging.info("تم إعداد الويب هوك بنجاح على Render.")
 except Exception as e:
     logging.error(f"لم يتمكن من إعداد الويب هوك تلقائيًا: {e}")
