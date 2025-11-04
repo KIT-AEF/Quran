@@ -1,99 +1,91 @@
+from flask import Flask
+import subprocess
+import threading
+import time
 import os
-import json
-import random
-import logging
-import telebot
-from flask import Flask, request
 
-# --- الإعدادات ---
+# --- 1. تم إضافة بيانات البث الخاصة بك ---
+# =================================================================
+SERVER_URL = "rtmps://dc4-1.rtmp.t.me/s/"
+STREAM_KEY = "3204163505:BZcclelza7tVj0cVNLyOBQ"
+# =================================================================
 
-# يفضل قراءة التوكن من متغيرات البيئة على Render.
-# إذا لم يجده، سيستخدم التوكن المكتوب هنا.
-# !! تأكد من استخدام توكن جديد وسري !!
-BOT_TOKEN = os.environ.get('BOT_TOKEN', "7875008240:AAEJs7FCGrtNF8why6IJf4vAX-FZgYyEgA0")
+# --- إعدادات (لا تحتاج لتغييرها) ---
+SURA_DIRECTORY = "quran_suras"
+PLAYLIST_FILE = "playlist.txt"
 
-
-# --- تهيئة البوت والتطبيق ---
-bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
 
+@app.route('/')
+def home():
+    return "Quran Stream Bot is running sequentially."
 
-# --- تحميل بيانات القرآن الكريم ---
-try:
-    # المسار الكامل للملف على PythonAnywhere أو المسار النسبي على Render
-    # استخدام os.path.join يجعله أكثر مرونة
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    quran_file_path = os.path.join(current_dir, 'quran.json')
-    with open(quran_file_path, 'r', encoding='utf-8') as f:
-        QURAN_DATA = json.load(f)
-    logging.info("تم تحميل ملف القرآن بنجاح.")
-except Exception as e:
-    logging.error(f"خطأ فادح في تحميل ملف القرآن: {e}")
-    QURAN_DATA = None
-
-
-# --- دوال البوت الأساسية ---
-def get_random_ayah():
-    """تختار هذه الدالة سورة وآية عشوائية وتعيد النص المنسق."""
-    if not QURAN_DATA:
-        return "عذرًا، حدث خطأ في تحميل بيانات القرآن."
-    
+def create_playlist():
+    """
+    ينشئ ملف playlist.txt يحتوي على قائمة بالسور لتشغيلها بالترتيب.
+    """
+    print("--> [INFO] جاري إنشاء قائمة التشغيل (playlist.txt)...")
     try:
-        random_surah = random.choice(QURAN_DATA)
-        random_verse = random.choice(random_surah['verses'])
-        
-        surah_name = random_surah['name']
-        surah_transliteration = random_surah['transliteration']
-        verse_number = random_verse['id']
-        verse_text = random_verse['text']
-        
-        message = (
-            f"{verse_text}\n\n"
-            f"📖 {surah_name} ({surah_transliteration}) - الآية {verse_number}"
-        )
-        return message
+        if not os.path.isdir(SURA_DIRECTORY) or not os.listdir(SURA_DIRECTORY):
+            print(f"!!! [ERROR] المجلد '{SURA_DIRECTORY}' فارغ أو غير موجود.")
+            print("!!! [ERROR] يرجى التأكد من اكتمال تحميل السور أولاً.")
+            return False
+
+        # الحصول على قائمة بالسور وفرزها لضمان الترتيب الصحيح
+        sura_files = sorted([f for f in os.listdir(SURA_DIRECTORY) if f.endswith('.mp3')])
+
+        with open(PLAYLIST_FILE, 'w', encoding='utf-8') as f:
+            for sura_file in sura_files:
+                # كتابة المسار بالشكل الذي يفهمه FFmpeg
+                f.write(f"file '{SURA_DIRECTORY}/{sura_file}'\n")
+
+        print(f"--> [SUCCESS] تم إنشاء قائمة التشغيل بنجاح وتحتوي على {len(sura_files)} سورة.")
+        return True
     except Exception as e:
-        logging.error(f"خطأ في اختيار آية: {e}")
-        return "عذرًا، لم أتمكن من جلب آية في الوقت الحالي."
+        print(f"!!! [ERROR] فشل إنشاء قائمة التشغيل: {e}")
+        return False
 
+def start_ffmpeg_stream():
+    if "الصق" in SERVER_URL or "الصق" in STREAM_KEY:
+        print("!!! خطأ: يرجى وضع بيانات البث الصحيحة.")
+        return
 
-# --- Webhook Handler (نقطة اتصال تليجرام) ---
-# تليجرام سيرسل التحديثات إلى هذا الرابط
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    """يستقبل التحديثات من تليجرام."""
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return '!', 200
-    else:
-        return 'خطأ، الطلب غير صحيح.', 403
+    print("--> [INFO] ستبدأ محاولة تشغيل البث التسلسلي...")
+    time.sleep(3)
 
+    try:
+        full_rtmp_url = f"{SERVER_URL.strip()}/{STREAM_KEY.strip()}"
 
-# --- معالجات الأوامر (Handlers) ---
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    """الرد على أمر /start برسالة جديدة"""
-    chat_id = message.chat.id
-    welcome_text = "أهلاً بك في بوت آيات القرآن الكريم.\nأرسل الأمر /new للحصول على آية عشوائية."
-    bot.send_message(chat_id, welcome_text)
+        # أمر FFmpeg المطور ليقرأ من قائمة التشغيل ويكررها
+        command = [
+            'ffmpeg',
+            '-re',
+            '-stream_loop', '-1',  # تكرار قائمة التشغيل بأكملها إلى ما لا نهاية
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', PLAYLIST_FILE,
+            '-vn', '-c:a', 'aac', '-ar', '44100', '-b:a', '128k',
+            '-f', 'flv', full_rtmp_url
+        ]
 
-@bot.message_handler(commands=['new'])
-def send_new_ayah(message):
-    """إرسال آية جديدة عند استقبال أمر /new"""
-    chat_id = message.chat.id
-    ayah_text = get_random_ayah()
-    bot.send_message(chat_id, ayah_text)
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            universal_newlines=True, encoding='utf-8', errors='ignore'
+        )
 
+        for line in process.stdout:
+            print(line.strip())
 
-# هذا الجزء مهم لـ Render للتأكد من أن الويب هوك يتم إعداده عند بدء التشغيل
-try:
-    RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL')
-    if RENDER_EXTERNAL_URL:
-        bot.remove_webhook()
-        bot.set_webhook(url=f"{RENDER_EXTERNAL_URL}/{BOT_TOKEN}")
-        logging.info("تم إعداد الويب هوك بنجاح على Render.")
-except Exception as e:
-    logging.error(f"لم يتمكن من إعداد الويب هوك تلقائيًا: {e}")
+    except Exception as e:
+        print(f"!!! [ERROR] حدث خطأ أثناء تشغيل FFmpeg: {e}")
+
+if __name__ == '__main__':
+    # الخطوة 1: إنشاء قائمة التشغيل
+    if create_playlist():
+        # الخطوة 2: بدء عملية البث
+        stream_thread = threading.Thread(target=start_ffmpeg_stream)
+        stream_thread.daemon = True
+        stream_thread.start()
+
+        # الخطوة 3: تشغيل خادم الويب
+        app.run(host='0.0.0.0', port=8080)
