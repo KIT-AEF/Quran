@@ -3,9 +3,9 @@ import subprocess
 import threading
 import time
 import os
-import requests # <-- تم إضافة هذه المكتبة
+import requests
 
-# --- 1. تم إضافة بيانات البث الخاصة بك ---
+# --- 1. بيانات البث الخاصة بك ---
 # =================================================================
 SERVER_URL = "rtmps://dc4-1.rtmp.t.me/s/"
 STREAM_KEY = "3204163505:BZcclelza7tVj0cVNLyOBQ"
@@ -22,7 +22,17 @@ app = Flask(__name__)
 def home():
     return "Quran Stream Bot is running."
 
-# --- وظيفة التحميل الجديدة ---
+# --- [التعديل الجديد] ---
+# تم إضافة هذا المسار خصيصًا لخدمات المراقبة مثل cron-job
+# لإبقاء الخدمة مستيقظة دون التسبب في خطأ "output too large"
+@app.route('/health')
+def health_check():
+    """
+    مسار مخصص لخدمات المراقبة. يعيد استجابة صغيرة وسريعة.
+    """
+    return "OK", 200
+# --- نهاية التعديل ---
+
 def download_all_suras():
     """
     تتحقق من وجود السور، وإذا لم تكن موجودة، تقوم بتحميلها كلها.
@@ -53,11 +63,9 @@ def download_all_suras():
             print(f"--> [SUCCESS] تم تحميل سورة رقم {sura_number} بنجاح.")
         except requests.exceptions.RequestException as e:
             print(f"!!! [ERROR] فشل تحميل سورة {sura_number}: {e}")
-            # إذا فشل التحميل، احذف الملف غير المكتمل إن وجد
             if os.path.exists(file_path):
                 os.remove(file_path)
-            # يمكنك أن تقرر إيقاف العملية أو إكمالها
-            break # إيقاف العملية عند أول خطأ في التحميل
+            break
 
 def create_playlist():
     """
@@ -77,7 +85,9 @@ def create_playlist():
     return True
 
 def start_ffmpeg_stream():
-    # ... (باقي كود البث كما هو بدون أي تغيير) ...
+    """
+    يبدأ عملية بث FFmpeg باستخدام قائمة التشغيل.
+    """
     if "الصق" in SERVER_URL or "الصق" in STREAM_KEY:
         print("!!! خطأ: يرجى وضع بيانات البث الصحيحة.")
         return
@@ -105,7 +115,7 @@ if __name__ == '__main__':
 
     # الخطوة 2: إنشاء قائمة التشغيل من الملفات الموجودة
     if create_playlist():
-        # الخطوة 3: بدء عملية البث
+        # الخطوة 3: بدء عملية البث في خيط منفصل
         stream_thread = threading.Thread(target=start_ffmpeg_stream)
         stream_thread.daemon = True
         stream_thread.start()
