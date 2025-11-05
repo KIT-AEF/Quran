@@ -9,13 +9,13 @@ from flask import Flask
 
 # --- 1. إعدادات البث الأساسية ---
 SERVER_URL = "rtmps://dc4-1.rtmp.t.me/s/"
-STREAM_KEY = "3204163505:BZcclelza7tVj0cVNLyOBQ"
+STREAM_KEY = "3204163505:BZcclelza7tVj0cVNLyOBQ" # هذا مفتاح البث وليس توكن البوت
 SURA_DIRECTORY = "quran_suras"
 BASE_AUDIO_URL = "https://server8.mp3quran.net/afs/"
 
-# --- 2. إعدادات بوت التليجرام (مهم: قم بملء هذه البيانات) ---
-TELEGRAM_BOT_TOKEN = "8428224491:AAEQA4jVdmITDaA8Wx2xUCQp2E_fAkU2vN4"
-ADMIN_USER_ID = 7115401970  # هنا ضع رقم الـ ID الخاص بحسابك على تليجرام
+# --- 2. إعدادات بوت التليجرام (تمت إضافة بياناتك) ---
+TELEGRAM_BOT_TOKEN = "8317090023:AAGBkquG5WXWbUghwW5dAvuBMu38DiCpcLI"
+ADMIN_USER_ID = 7115401970
 
 # --- 3. متغيرات عامة لإدارة حالة البث ---
 STATE_FILE = "stream_state.json"
@@ -27,7 +27,7 @@ sura_files = []
 app = Flask(__name__)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN, parse_mode='Markdown')
 
-# --- وظائف إدارة حالة البث (بدون تغيير) ---
+# --- وظائف إدارة حالة البث ---
 
 def load_stream_state():
     if not os.path.exists(STATE_FILE):
@@ -42,7 +42,7 @@ def save_stream_state(state):
     with open(STATE_FILE, 'w') as f:
         json.dump(state, f)
 
-# --- وظائف تجهيز المحتوى (بدون تغيير) ---
+# --- وظائف تجهيز المحتوى ---
 
 def download_all_suras():
     print("--> [INFO] التحقق من وجود ملفات السور...")
@@ -74,13 +74,13 @@ def prepare_sura_list():
     print(f"--> [SUCCESS] تم تجهيز قائمة التشغيل وتحتوي على {len(sura_files)} سورة.")
     return True
 
-# --- وظائف التحكم في البث (بدون تغيير) ---
+# --- وظائف التحكم في البث ---
 
 def run_streaming_loop():
     global stream_process
     print("--> [INFO] حلقة البث بدأت وتنتظر أمر التشغيل...")
     while True:
-        should_stream.wait() # يتوقف هنا حتى يتم إعطاء أمر التشغيل
+        should_stream.wait()
         state = load_stream_state()
         current_sura_index = state.get("current_sura_index", 0)
         if current_sura_index >= len(sura_files):
@@ -91,7 +91,7 @@ def run_streaming_loop():
         full_rtmp_url = f"{SERVER_URL.strip()}/{STREAM_KEY.strip()}"
         command = [
             'ffmpeg', '-re', '-i', sura_to_play,
-            '-vn', '-c:a', 'aac', '-ar', '44100', '-b:a', '128k',
+            '-vn', '-c:a', 'aac', '-ar', '44100', '-b:a', '96k', # تم استخدام جودة 96k لتقليل استهلاك الموارد
             '-f', 'flv', full_rtmp_url
         ]
         try:
@@ -114,7 +114,7 @@ def run_streaming_loop():
             else:
                 print("--> [INFO] تم إيقاف البث يدويًا.")
 
-# --- أوامر بوت التليجرام (باستخدام Telebot) ---
+# --- أوامر بوت التليجرام ---
 
 def is_admin(message):
     """فلتر للتحقق من أن المستخدم هو المدير."""
@@ -141,7 +141,7 @@ def stop_stream_command(message):
             stream_process.terminate()
             print("--> [COMMAND] تم إيقاف عملية FFmpeg.")
         except Exception as e:
-            print(f"!!! [ERROR] لم يتم إيقاف FFmpeg بنجاح: {e}")
+            print(f"!!! [ERROR] لم يتم إيقاف FFmpeg بنسجاح: {e}")
     bot.reply_to(message, "🛑 تم إعطاء أمر إيقاف البث.")
 
 @bot.message_handler(commands=['status'], func=is_admin)
@@ -167,7 +167,14 @@ def unauthorized_user(message):
     bot.reply_to(message, "عذرًا، هذا البوت خاص بالتحكم في البث وغير متاح للعامة.")
 
 def run_bot():
-    """تشغيل البوت في حلقة مستمرة لضمان عدم توقفه."""
+    """تشغيل البوت في حلقة مستمرة مع محاولة إيقاف الجلسات القديمة."""
+    print("--> [INFO] إيقاف أي جلسات قديمة للبوت...")
+    try:
+        bot.delete_webhook(drop_pending_updates=True)
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"--> [WARNING] لم يتمكن من حذف الـ webhook القديم، هذا طبيعي: {e}")
+
     print("--> [SUCCESS] بوت تليجرام جاهز ويعمل الآن.")
     while True:
         try:
@@ -176,7 +183,7 @@ def run_bot():
             print(f"!!! [ERROR] خطأ في بوت تليجرام، إعادة التشغيل خلال 15 ثانية: {e}")
             time.sleep(15)
 
-# --- إعدادات خادم الويب (بدون تغيير) ---
+# --- إعدادات خادم الويب ---
 @app.route('/')
 def home():
     return "Quran Stream Bot is running with Telegram control (Telebot)."
@@ -187,17 +194,13 @@ def health_check():
 
 # --- الدالة الرئيسية للتشغيل ---
 if __name__ == '__main__':
-    # 1. تحميل السور وتجهيز القائمة
     download_all_suras()
     if prepare_sura_list():
-        # 2. بدء خيط البث في الخلفية
         stream_thread = threading.Thread(target=run_streaming_loop, daemon=True)
         stream_thread.start()
 
-        # 3. بدء بوت التليجرام في خيط منفصل
         bot_thread = threading.Thread(target=run_bot, daemon=True)
         bot_thread.start()
 
-        # 4. تشغيل خادم الويب في الخيط الرئيسي (للاستضافة على Render)
         port = int(os.environ.get("PORT", 8080))
         app.run(host='0.0.0.0', port=port)
