@@ -3,18 +3,14 @@ import subprocess
 import threading
 import time
 import os
-import requests # <-- تم إضافة هذه المكتبة
+import requests
 
-# --- 1. تم إضافة بيانات البث الخاصة بك ---
-# =================================================================
 SERVER_URL = "rtmps://dc4-1.rtmp.t.me/s/"
 STREAM_KEY = "3204163505:BZcclelza7tVj0cVNLyOBQ"
-# =================================================================
 
-# --- إعدادات (لا تحتاج لتغييرها) ---
 SURA_DIRECTORY = "quran_suras"
 PLAYLIST_FILE = "playlist.txt"
-BASE_AUDIO_URL = "https://server8.mp3quran.net/afs/" # رابط شيخ مشاري العفاسي
+BASE_AUDIO_URL = "https://server8.mp3quran.net/afs/"
 
 app = Flask(__name__)
 
@@ -22,18 +18,18 @@ app = Flask(__name__)
 def home():
     return "Quran Stream Bot is running."
 
-# --- وظيفة التحميل الجديدة ---
+@app.route('/health')
+def health_check():
+    return "OK", 200
+
 def download_all_suras():
-    """
-    تتحقق من وجود السور، وإذا لم تكن موجودة، تقوم بتحميلها كلها.
-    """
     print("--> [INFO] التحقق من وجود ملفات السور...")
     if not os.path.exists(SURA_DIRECTORY):
         print(f"--> [INFO] المجلد '{SURA_DIRECTORY}' غير موجود، سيتم إنشاؤه.")
         os.makedirs(SURA_DIRECTORY)
 
-    for i in range(1, 115): # من سورة 1 إلى 114
-        sura_number = f'{i:03}' # تحويل الرقم إلى صيغة 001, 002, ...
+    for i in range(1, 115):
+        sura_number = f'{i:03}'
         file_name = f"{sura_number}.mp3"
         file_path = os.path.join(SURA_DIRECTORY, file_name)
         
@@ -53,16 +49,11 @@ def download_all_suras():
             print(f"--> [SUCCESS] تم تحميل سورة رقم {sura_number} بنجاح.")
         except requests.exceptions.RequestException as e:
             print(f"!!! [ERROR] فشل تحميل سورة {sura_number}: {e}")
-            # إذا فشل التحميل، احذف الملف غير المكتمل إن وجد
             if os.path.exists(file_path):
                 os.remove(file_path)
-            # يمكنك أن تقرر إيقاف العملية أو إكمالها
-            break # إيقاف العملية عند أول خطأ في التحميل
+            break
 
 def create_playlist():
-    """
-    ينشئ ملف playlist.txt يحتوي على قائمة بالسور لتشغيلها بالترتيب.
-    """
     print("--> [INFO] جاري إنشاء قائمة التشغيل (playlist.txt)...")
     sura_files = sorted([f for f in os.listdir(SURA_DIRECTORY) if f.endswith('.mp3')])
 
@@ -77,7 +68,6 @@ def create_playlist():
     return True
 
 def start_ffmpeg_stream():
-    # ... (باقي كود البث كما هو بدون أي تغيير) ...
     if "الصق" in SERVER_URL or "الصق" in STREAM_KEY:
         print("!!! خطأ: يرجى وضع بيانات البث الصحيحة.")
         return
@@ -100,15 +90,11 @@ def start_ffmpeg_stream():
         print(f"!!! [ERROR] حدث خطأ أثناء تشغيل FFmpeg: {e}")
 
 if __name__ == '__main__':
-    # الخطوة 1: تحميل جميع السور إذا لم تكن موجودة
     download_all_suras()
 
-    # الخطوة 2: إنشاء قائمة التشغيل من الملفات الموجودة
     if create_playlist():
-        # الخطوة 3: بدء عملية البث
         stream_thread = threading.Thread(target=start_ffmpeg_stream)
         stream_thread.daemon = True
         stream_thread.start()
 
-        # الخطوة 4: تشغيل خادم الويب
         app.run(host='0.0.0.0', port=8080)
