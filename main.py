@@ -6,7 +6,7 @@ import os
 import requests
 
 SERVER_URL = "rtmps://dc4-1.rtmp.t.me/s/"
-STREAM_KEY = "3204163505:BZcclelza7tVj0cVNLyOBQ"
+STREAM_KEY = "2704410787:utWqudzFDyNoZ5MqSeqGOg"
 
 SURA_DIRECTORY = "quran_suras"
 PLAYLIST_FILE = "playlist.txt"
